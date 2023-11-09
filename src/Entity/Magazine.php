@@ -128,8 +128,6 @@ class Magazine implements VisibilityInterface, ActivityPubActorInterface, ApiRes
         $this->isAdult = $isAdult;
         $this->icon = $icon;
         $this->moderators = new ArrayCollection();
-        $this->ownershipRequests = new ArrayCollection();
-        $this->moderatorRequests = new ArrayCollection();
         $this->entries = new ArrayCollection();
         $this->posts = new ArrayCollection();
         $this->subscriptions = new ArrayCollection();
@@ -203,16 +201,12 @@ class Magazine implements VisibilityInterface, ActivityPubActorInterface, ApiRes
         return $this->moderators->matching($criteria)->first();
     }
 
-    public function getOwner(): ?User
+    public function getOwner(): User
     {
         $criteria = Criteria::create()
             ->where(Criteria::expr()->eq('isOwner', true));
 
-        $result = $this->moderators->matching($criteria)->first();
-        if(!is_bool($result)) {
-            return $result->user;
-        }
-        return null;
+        return $this->moderators->matching($criteria)->first()->user;
     }
 
     public function addEntry(Entry $entry): self
