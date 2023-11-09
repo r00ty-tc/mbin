@@ -203,12 +203,16 @@ class Magazine implements VisibilityInterface, ActivityPubActorInterface, ApiRes
         return $this->moderators->matching($criteria)->first();
     }
 
-    public function getOwner(): User
+    public function getOwner(): ?User
     {
         $criteria = Criteria::create()
             ->where(Criteria::expr()->eq('isOwner', true));
 
-        return $this->moderators->matching($criteria)->first()->user;
+        $result = $this->moderators->matching($criteria)->first();
+        if(!is_bool($result)) {
+            return $result->user;
+        }
+        return null;
     }
 
     public function addEntry(Entry $entry): self
