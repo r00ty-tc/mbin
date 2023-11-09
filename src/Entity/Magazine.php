@@ -191,6 +191,20 @@ class Magazine implements VisibilityInterface, ActivityPubActorInterface, ApiRes
         return null;
     }
 
+    public function removeUserAsModerator(User $user): void
+    {
+        $user->moderatorTokens->get(-1);
+
+        $criteria = Criteria::create()
+            ->where(Criteria::expr()->eq('magazine', $this));
+
+        foreach ($user->moderatorTokens->matching($criteria) as $item) {
+            /** @var Moderator $mod */
+            $mod = $item;
+            $this->moderators->remove($mod->getId());
+        }
+    }
+
     public function userIsOwner(User $user): bool
     {
         $user->moderatorTokens->get(-1);
