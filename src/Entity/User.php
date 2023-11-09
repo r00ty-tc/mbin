@@ -464,7 +464,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Visibil
 
     public function updateFollowCounts(User $following)
     {
-        $following->followersCount = $following->followers->count();
+        if($following->apFollowersCount != null) {
+            $following->followersCount = $following->apFollowersCount;
+        } else {
+            $following->followersCount = $following->followers->count();
+        }
     }
 
     public function unfollow(User $following): void

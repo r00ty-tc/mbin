@@ -11,7 +11,9 @@ use App\Entity\Contracts\ActivityPubActivityInterface;
 use App\Entity\Contracts\ActivityPubActorInterface;
 use App\Entity\Image;
 use App\Entity\Magazine;
+use App\Entity\Moderator;
 use App\Entity\User;
+use App\Exception\InvalidApPostException;
 use App\Factory\ActivityPub\PersonFactory;
 use App\Factory\MagazineFactory;
 use App\Factory\UserFactory;
@@ -245,6 +247,7 @@ class ActivityPubManager
             $user->apInboxUrl = $actor['endpoints']['sharedInbox'] ?? $actor['inbox'];
             $user->apDomain = parse_url($actor['id'], PHP_URL_HOST);
             $user->apFollowersUrl = $actor['followers'] ?? null;
+            $user->apAttributedToUrl = $actor['attributedTo'] ?? null;
             $user->apPreferredUsername = $actor['preferredUsername'] ?? null;
             $user->apDiscoverable = $actor['discoverable'] ?? true;
             $user->apManuallyApprovesFollowers = $actor['manuallyApprovesFollowers'] ?? false;
@@ -275,6 +278,15 @@ class ActivityPubManager
                     $this->bus->dispatch(new DeleteImageMessage($user->cover->filePath));
                 }
                 $user->cover = $newImage;
+            }
+
+            if($user->apFollowersUrl != null) {
+                try {
+                    $followersObj = $this->apHttpClient->getCollectionObject($user->apFollowersUrl);
+                    if(isset($followersObj['totalItems']) and is_int($followersObj['totalItems'])) {
+                        $user->apFollowersCount = $followersObj['totalItems'];
+                    }
+                } catch (InvalidApPostException $ignored) { }
             }
 
             // Write to DB
@@ -362,6 +374,7 @@ class ActivityPubManager
             $magazine->apInboxUrl = $actor['endpoints']['sharedInbox'] ?? $actor['inbox'];
             $magazine->apDomain = parse_url($actor['id'], PHP_URL_HOST);
             $magazine->apFollowersUrl = $actor['followers'] ?? null;
+            $magazine->apAttributedToUrl = $actor['attributedTo'] ?? null;
             $magazine->apPreferredUsername = $actor['preferredUsername'] ?? null;
             $magazine->apDiscoverable = $actor['discoverable'] ?? true;
             $magazine->apPublicUrl = $actor['url'] ?? $actorUrl;
@@ -371,6 +384,57 @@ class ActivityPubManager
             $magazine->isAdult = (bool) $actor['sensitive'];
 
             $this->entityManager->flush();
+
+            if ($magazine->apFollowersUrl != null) {
+                try {
+                    $followersObj = $this->apHttpClient->getCollectionObject($magazine->apFollowersUrl);
+                    if(isset($followersObj['totalItems']) and is_int($followersObj['totalItems'])) {
+                        $magazine->apFollowersCount = $followersObj['totalItems'];
+                    }
+                } catch (InvalidApPostException $ignored) { }
+            }
+
+            if ($magazine->apAttributedToUrl != null) {
+                try {
+                    $attributedObj = $this->apHttpClient->getCollectionObject($magazine->apAttributedToUrl);
+                    if (isset($attributedObj['items']) and is_array($attributedObj['items'])) {
+                        $moderatorsToRemove = [];
+                        foreach($magazine->moderators as $mod) {
+                            /** @var $mod Moderator */
+                            $moderatorsToRemove[] = $mod->user;
+                        }
+                        $indexesNotToRemove = [];
+
+                        foreach ($attributedObj['items'] as $item) {
+                            if (is_string($item)) {
+                                $user = $this->findActorOrCreate($item);
+                                if ($user instanceof User) {
+                                    foreach ($moderatorsToRemove as $key => $existMod) {
+                                        if ($existMod->username == $user->username) {
+                                            $indexesNotToRemove[] = $key;
+                                            break;
+                                        }
+                                    }
+                                    if(!$magazine->userIsModerator($user)) {
+                                        $magazine->addModerator(new Moderator($magazine, $user, false, true));
+                                    }
+                                }
+                            }
+                        }
+
+                        foreach ($indexesNotToRemove as $i) {
+                            $moderatorsToRemove[$i] = null;
+                        }
+
+                        foreach ($moderatorsToRemove as $modToRemove) {
+                            if ($modToRemove == null) {
+                                continue;
+                            }
+                            $magazine->removeUserAsModerator($modToRemove);
+                        }
+                    }
+                } catch (InvalidApPostException $ignored) { }
+            }
 
             return $magazine;
         } else {

@@ -139,7 +139,7 @@ class Magazine implements VisibilityInterface, ActivityPubActorInterface, ApiRes
         $this->logs = new ArrayCollection();
         $this->awards = new ArrayCollection();
 
-        $this->addModerator(new Moderator($this, $user, true, true));
+        //$this->addModerator(new Moderator($this, $user, true, true));
 
         $this->createdAtTraitConstruct();
     }
@@ -168,6 +168,20 @@ class Magazine implements VisibilityInterface, ActivityPubActorInterface, ApiRes
             ->andWhere(Criteria::expr()->eq('isConfirmed', true));
 
         return !$user->moderatorTokens->matching($criteria)->isEmpty();
+    }
+
+    public function removeUserAsModerator(User $user): void
+    {
+        $user->moderatorTokens->get(-1);
+
+        $criteria = Criteria::create()
+            ->where(Criteria::expr()->eq('magazine', $this));
+
+        foreach ($user->moderatorTokens->matching($criteria) as $item) {
+            /** @var Moderator $mod */
+            $mod = $item;
+            $this->moderators->remove($mod->getId());
+        }
     }
 
     public function userIsOwner(User $user): bool
@@ -293,7 +307,11 @@ class Magazine implements VisibilityInterface, ActivityPubActorInterface, ApiRes
 
     private function updateSubscriptionsCount(): void
     {
-        $this->subscriptionsCount = $this->subscriptions->count();
+        if($this->apFollowersCount != null) {
+            $this->subscriptionsCount = $this->apFollowersCount;
+        } else {
+            $this->subscriptionsCount = $this->subscriptions->count();
+        }
     }
 
     public function unsubscribe(User $user): void
