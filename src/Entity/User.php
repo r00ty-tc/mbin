@@ -432,7 +432,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Visibil
             }
         }
 
-        $this->updateFollowCounts($following);
+        $following->updateFollowCounts();
 
         return $this;
     }
@@ -462,12 +462,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Visibil
         return $this->follows->matching($criteria)->count() > 0;
     }
 
-    public function updateFollowCounts(User $following)
+    public function updateFollowCounts(): void
     {
-        if($following->apFollowersCount != null) {
-            $following->followersCount = $following->apFollowersCount;
+        if($this->apFollowersCount != null) {
+            $this->followersCount = $this->apFollowersCount;
         } else {
-            $following->followersCount = $following->followers->count();
+            $this->followersCount = $this->followers->count();
         }
     }
 
@@ -490,7 +490,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Visibil
             }
         }
 
-        $this->updateFollowCounts($followingUser);
+        $followingUser->updateFollowCounts();
     }
 
     public function toggleTheme(): self

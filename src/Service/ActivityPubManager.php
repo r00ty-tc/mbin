@@ -285,6 +285,7 @@ class ActivityPubManager
                     $followersObj = $this->apHttpClient->getCollectionObject($user->apFollowersUrl);
                     if(isset($followersObj['totalItems']) and is_int($followersObj['totalItems'])) {
                         $user->apFollowersCount = $followersObj['totalItems'];
+                        $user->updateFollowCounts();
                     }
                 } catch (InvalidApPostException $ignored) { }
             }
@@ -390,6 +391,7 @@ class ActivityPubManager
                     $followersObj = $this->apHttpClient->getCollectionObject($magazine->apFollowersUrl);
                     if(isset($followersObj['totalItems']) and is_int($followersObj['totalItems'])) {
                         $magazine->apFollowersCount = $followersObj['totalItems'];
+                        $magazine->updateSubscriptionsCount();
                     }
                 } catch (InvalidApPostException $ignored) { }
             }
