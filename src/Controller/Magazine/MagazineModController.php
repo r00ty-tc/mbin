@@ -17,7 +17,8 @@ class MagazineModController extends AbstractController
     {
         $moderatorsWithoutOwner = [];
         foreach ($repository->findModerators($magazine, $this->getPageNb($request)) as /** @var $mod Moderator */ $mod) {
-            if(!$mod->isOwner) {
+            // only include the owner if it is a local magazine, for remote magazines the owner is always the admin
+            if(!$mod->isOwner or $magazine->apId == null) {
                 $moderatorsWithoutOwner[] = $mod;
             }
         }
