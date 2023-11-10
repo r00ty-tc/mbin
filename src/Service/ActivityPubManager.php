@@ -433,7 +433,7 @@ class ActivityPubManager
 
                     if (null !== $items) {
                         $moderatorsToRemove = [];
-                        foreach ($magazine->moderators as /* @var $mod Moderator */ $mod) {
+                        foreach ($magazine->moderators as /** @var $mod Moderator */ $mod) {
                             if (!$mod->isOwner) {
                                 $moderatorsToRemove[] = $mod->user;
                             }
