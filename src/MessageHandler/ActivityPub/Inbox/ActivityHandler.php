@@ -10,6 +10,7 @@ use App\Message\ActivityPub\Inbox\AddMessage;
 use App\Message\ActivityPub\Inbox\AnnounceMessage;
 use App\Message\ActivityPub\Inbox\CreateMessage;
 use App\Message\ActivityPub\Inbox\DeleteMessage;
+use App\Message\ActivityPub\Inbox\FlagMessage;
 use App\Message\ActivityPub\Inbox\FollowMessage;
 use App\Message\ActivityPub\Inbox\LikeMessage;
 use App\Message\ActivityPub\Inbox\RemoveMessage;
@@ -115,6 +116,9 @@ readonly class ActivityHandler
                 break;
             case 'Remove':
                 $this->bus->dispatch(new RemoveMessage($payload));
+                break;
+            case 'Flag':
+                $this->bus->dispatch(new FlagMessage($payload));
                 break;
         }
     }
