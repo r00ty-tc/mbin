@@ -9,6 +9,7 @@ use App\Message\ActivityPub\Outbox\DeliverMessage;
 use App\Service\ActivityPub\ApHttpClient;
 use App\Service\ActivityPubManager;
 use App\Service\SettingsManager;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
@@ -18,6 +19,7 @@ class DeliverHandler
         private readonly ApHttpClient $client,
         private readonly ActivityPubManager $manager,
         private readonly SettingsManager $settingsManager,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -27,15 +29,20 @@ class DeliverHandler
             return;
         }
 
+        $this->logger->debug('Getting Actor for url: '.($message->payload['object']['attributedTo'] ?? $message->payload['actor']));
         $actor = $this->manager->findActorOrCreate(
             $message->payload['object']['attributedTo'] ?? $message->payload['actor']
         );
 
         if (!$actor) {
+            $this->logger->debug('got no actor :(');
+
             return;
         }
 
         if ($actor instanceof User && $actor->isBanned) {
+            $this->logger->debug('got an actor, but he is banned :(');
+
             return;
         }
 
