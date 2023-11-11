@@ -16,12 +16,13 @@ class MagazineModController extends AbstractController
     public function __invoke(Magazine $magazine, MagazineRepository $repository, Request $request): Response
     {
         $moderatorsWithoutOwner = [];
-        foreach ($repository->findModerators($magazine, $this->getPageNb($request)) as /** @var $mod Moderator */ $mod) {
+        foreach ($repository->findModerators($magazine, $this->getPageNb($request)) as /* @var $mod Moderator */ $mod) {
             // only include the owner if it is a local magazine, for remote magazines the owner is always the admin
-            if(!$mod->isOwner or $magazine->apId == null) {
+            if (!$mod->isOwner or null === $magazine->apId) {
                 $moderatorsWithoutOwner[] = $mod;
             }
         }
+
         return $this->render(
             'magazine/moderators.html.twig',
             [

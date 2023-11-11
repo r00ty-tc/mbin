@@ -111,7 +111,7 @@ class ActivityPubManager
      *
      * @param string $actorUrlOrHandle actor URL or actor handle
      *
-     * @return null|User|Magazine or Magazine or null on error
+     * @return User|Magazine|null or Magazine or null on error
      */
     public function findActorOrCreate(string $actorUrlOrHandle): null|User|Magazine
     {
@@ -283,14 +283,15 @@ class ActivityPubManager
                 $user->cover = $newImage;
             }
 
-            if($user->apFollowersUrl != null) {
+            if (null !== $user->apFollowersUrl) {
                 try {
                     $followersObj = $this->apHttpClient->getCollectionObject($user->apFollowersUrl);
-                    if(isset($followersObj['totalItems']) and is_int($followersObj['totalItems'])) {
+                    if (isset($followersObj['totalItems']) and \is_int($followersObj['totalItems'])) {
                         $user->apFollowersCount = $followersObj['totalItems'];
                         $user->updateFollowCounts();
                     }
-                } catch (InvalidApPostException $ignored) { }
+                } catch (InvalidApPostException $ignored) {
+                }
             }
 
             // Write to DB
@@ -388,48 +389,49 @@ class ActivityPubManager
             $magazine->apFetchedAt = new \DateTime();
             $magazine->isAdult = (bool) $actor['sensitive'];
 
-            if ($magazine->apFollowersUrl != null) {
+            if (null !== $magazine->apFollowersUrl) {
                 try {
                     $this->logger->info("updating remote followers of magazine $actorUrl");
                     $followersObj = $this->apHttpClient->getCollectionObject($magazine->apFollowersUrl);
-                    if(isset($followersObj['totalItems']) and is_int($followersObj['totalItems'])) {
+                    if (isset($followersObj['totalItems']) and \is_int($followersObj['totalItems'])) {
                         $magazine->apFollowersCount = $followersObj['totalItems'];
                         $magazine->updateSubscriptionsCount();
                     }
-                } catch (InvalidApPostException $ignored) { }
+                } catch (InvalidApPostException $ignored) {
+                }
             }
 
-            if ($magazine->apAttributedToUrl != null) {
+            if (null !== $magazine->apAttributedToUrl) {
                 try {
                     $this->logger->info("fetching moderators of remote magazine $actorUrl");
                     $attributedObj = $this->apHttpClient->getCollectionObject($magazine->apAttributedToUrl);
                     $items = null;
-                    if (isset($attributedObj['items']) and is_array($attributedObj['items'])) {
+                    if (isset($attributedObj['items']) and \is_array($attributedObj['items'])) {
                         $items = $attributedObj['items'];
-                    } else if(isset($attributedObj['orderedItems']) and is_array($attributedObj['orderedItems'])) {
+                    } elseif (isset($attributedObj['orderedItems']) and \is_array($attributedObj['orderedItems'])) {
                         $items = $attributedObj['orderedItems'];
                     }
 
-                    if($items != null) {
+                    if (null !== $items) {
                         $moderatorsToRemove = [];
-                        foreach($magazine->moderators as /** @var $mod Moderator */ $mod) {
-                            if(!$mod->isOwner) {
+                        foreach ($magazine->moderators as /* @var $mod Moderator */ $mod) {
+                            if (!$mod->isOwner) {
                                 $moderatorsToRemove[] = $mod->user;
                             }
                         }
                         $indexesNotToRemove = [];
 
                         foreach ($items as $item) {
-                            if (is_string($item)) {
+                            if (\is_string($item)) {
                                 $user = $this->findActorOrCreate($item);
                                 if ($user instanceof User) {
                                     foreach ($moderatorsToRemove as $key => $existMod) {
-                                        if ($existMod->username == $user->username) {
+                                        if ($existMod->username === $user->username) {
                                             $indexesNotToRemove[] = $key;
                                             break;
                                         }
                                     }
-                                    if(!$magazine->userIsModerator($user)) {
+                                    if (!$magazine->userIsModerator($user)) {
                                         $magazine->addModerator(new Moderator($magazine, $user, false, true));
                                     }
                                 }
@@ -441,7 +443,7 @@ class ActivityPubManager
                         }
 
                         foreach ($moderatorsToRemove as $modToRemove) {
-                            if ($modToRemove == null) {
+                            if (null === $modToRemove) {
                                 continue;
                             }
                             $magazine->removeUserAsModerator($modToRemove);
@@ -449,7 +451,8 @@ class ActivityPubManager
                     } else {
                         $this->logger->warning("could not update the moderators of $actorUrl, the response doesn't have a 'items' or 'orderedItems' property or it is not an array");
                     }
-                } catch (InvalidApPostException $ignored) { }
+                } catch (InvalidApPostException $ignored) {
+                }
             }
 
             $this->entityManager->flush();
@@ -548,7 +551,7 @@ class ActivityPubManager
      *
      * @param string $actorUrl actor URL
      *
-     * @return null|Magazine|User null on error
+     * @return Magazine|User|null null on error
      */
     public function updateActor(string $actorUrl): null|Magazine|User
     {

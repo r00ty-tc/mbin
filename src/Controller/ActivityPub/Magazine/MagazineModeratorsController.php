@@ -19,7 +19,8 @@ class MagazineModeratorsController
         private readonly ActivityPubManager $manager,
         private readonly MagazineRepository $magazineRepository,
         private readonly UrlGeneratorInterface $urlGenerator
-    ) { }
+    ) {
+    }
 
     public function __invoke(Magazine $magazine, Request $request): JsonResponse
     {
@@ -48,10 +49,10 @@ class MagazineModeratorsController
             $items[] = $this->manager->getActorProfileId($actor);
         }
 
-        $routeName = "ap_magazine_moderators";
+        $routeName = 'ap_magazine_moderators';
         $routeParams = ['name' => $magazine->name];
 
-        return  [
+        return [
             '@context' => ActivityPubActivityInterface::CONTEXT_URL,
             'type' => 'OrderedCollection',
             'id' => $this->urlGenerator->generate($routeName, $routeParams, UrlGeneratorInterface::ABSOLUTE_URL),

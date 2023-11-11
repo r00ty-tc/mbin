@@ -183,7 +183,7 @@ class ApHttpClient
                     ]);
                 } catch (\Exception $e) {
                     $msg = "AP Get fail: {$apAddress}, ";
-                    if($response != null) {
+                    if (null !== $response) {
                         $msg .= $response->getContent(false);
                     }
                     throw new InvalidApPostException($msg);

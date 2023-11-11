@@ -464,7 +464,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Visibil
 
     public function updateFollowCounts(): void
     {
-        if($this->apFollowersCount != null) {
+        if (null !== $this->apFollowersCount) {
             $this->followersCount = $this->apFollowersCount;
         } else {
             $this->followersCount = $this->followers->count();

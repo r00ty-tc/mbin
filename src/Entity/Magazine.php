@@ -305,7 +305,7 @@ class Magazine implements VisibilityInterface, ActivityPubActorInterface, ApiRes
 
     public function updateSubscriptionsCount(): void
     {
-        if($this->apFollowersCount != null) {
+        if (null !== $this->apFollowersCount) {
             $this->subscriptionsCount = $this->apFollowersCount;
         } else {
             $this->subscriptionsCount = $this->subscriptions->count();
