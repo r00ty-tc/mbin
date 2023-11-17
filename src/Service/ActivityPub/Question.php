@@ -23,6 +23,7 @@ use App\Service\EntryCommentManager;
 use App\Service\PostCommentManager;
 use App\Service\PostManager;
 use App\Service\SettingsManager;
+use App\Utils\ArrayHelper;
 use Doctrine\ORM\EntityManagerInterface;
 
 class Question
@@ -155,12 +156,12 @@ class Question
     {
         if (!\in_array(
             ActivityPubActivityInterface::PUBLIC_URL,
-            array_merge($object['to'] ?? [], $object['cc'] ?? [])
+            ArrayHelper::safe_merge_array($object['to'], $object['cc'])
         )) {
             if (
                 !\in_array(
                     $actor->apFollowersUrl,
-                    array_merge($object['to'] ?? [], $object['cc'] ?? [])
+                    ArrayHelper::safe_merge_array($object['to'], $object['cc'])
                 )
             ) {
                 throw new \Exception('PM: not implemented.');

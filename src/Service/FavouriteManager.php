@@ -12,6 +12,7 @@ use App\Factory\FavouriteFactory;
 use App\Repository\FavouriteRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Lock\LockFactory; 
 
 class FavouriteManager
 {
@@ -22,40 +23,49 @@ class FavouriteManager
         private readonly FavouriteFactory $factory,
         private readonly FavouriteRepository $repository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly EventDispatcherInterface $dispatcher
+        private readonly EventDispatcherInterface $dispatcher,
+        private readonly LockFactory $lockFactory, 
     ) {
     }
 
     public function toggle(User $user, FavouriteInterface $subject, string $type = null): ?Favourite
     {
-        if (!($favourite = $this->repository->findBySubject($user, $subject))) {
-            if (self::TYPE_UNLIKE === $type) {
-                return null;
+        // Use a symphony lock to ensure only one favourite is toggled at once.
+        $lock = $this->lockFactory->createLock('favourite');
+        if ($lock->acquire(true)) {
+            try {
+                if (!($favourite = $this->repository->findBySubject($user, $subject))) {
+                    if (self::TYPE_UNLIKE === $type) {
+                        return null;
+                    }
+
+                    $favourite = $this->factory->createFromEntity($user, $subject);
+                    $this->entityManager->persist($favourite);
+                    $subject->favourites->add($favourite);
+                    $subject->updateCounts();
+                    $subject->updateRanking();
+                } else {
+                    if (self::TYPE_LIKE === $type) {
+                        return $favourite;
+                    }
+
+                    $subject->favourites->removeElement($favourite);
+                    $subject->updateCounts();
+                    $subject->updateRanking();
+                    $favourite = null;
+                }
+
+                $this->entityManager->flush();
+
+                $this->dispatcher->dispatch(new FavouriteEvent($subject, $user, null === $favourite));
+
+                return $favourite ?? null;
+            } finally {
+                // Finally ensures that whatever happens, the lock is released
+                $lock->release();
             }
-
-            $favourite = $this->factory->createFromEntity($user, $subject);
-            $this->entityManager->persist($favourite);
-
-            $subject->favourites->add($favourite);
-            $subject->updateCounts();
-            $subject->updateScore();
-            $subject->updateRanking();
         } else {
-            if (self::TYPE_LIKE === $type) {
-                return $favourite;
-            }
-
-            $subject->favourites->removeElement($favourite);
-            $subject->updateCounts();
-            $subject->updateScore();
-            $subject->updateRanking();
-            $favourite = null;
+            throw new \Exception('FavouriteManager::toggle: Acquire lock failed'); 
         }
-
-        $this->entityManager->flush();
-
-        $this->dispatcher->dispatch(new FavouriteEvent($subject, $user, null === $favourite));
-
-        return $favourite ?? null;
     }
 }

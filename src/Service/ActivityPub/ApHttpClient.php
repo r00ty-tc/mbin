@@ -6,15 +6,19 @@ namespace App\Service\ActivityPub;
 
 use App\Entity\Magazine;
 use App\Entity\User;
+use App\Exception\InvalidApGetException;
 use App\Exception\InvalidApPostException;
 use App\Factory\ActivityPub\GroupFactory;
 use App\Factory\ActivityPub\PersonFactory;
 use App\Repository\MagazineRepository;
 use App\Repository\SiteRepository;
 use App\Repository\UserRepository;
+use App\Utils\HttpStatusHelper;
 use JetBrains\PhpStorm\ArrayShape;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\CurlHttpClient;
+use Symfony\Component\Messenger\Exception\RecoverableMessageHandlingException;
+use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 
@@ -59,9 +63,17 @@ class ApHttpClient
             ]);
 
             $statusCode = $r->getStatusCode();
+
+            // Check for recoverable errors and requeue
+            if (HttpStatusHelper::isStatusCodeTemporary((string) $statusCode)) {
+                $this->logger->warning("ApHttpClient: Get fail (temporary): {$url} / {$statusCode}, ".$r->getContent(false));
+                throw new RecoverableMessageHandlingException("Get fail (temporary): {$url} / {$statusCode}");
+            }
+                        
             // Accepted status code are 2xx or 410 (used Tombstone types)
             if (!str_starts_with((string) $statusCode, '2') && 410 !== $statusCode) {
-                throw new InvalidApPostException("Invalid status code while getting: {$url}, ".$r->getContent(false));
+                $this->logger->error("ApHttpClient: Get fail: {$url} / {$r->getStatusCode()}, ".$r->getContent(false));
+                throw new InvalidApGetException("Get fail: {$url} / {$r->getStatusCode()}");
             }
 
             $item->expiresAt(new \DateTime('+1 hour'));
@@ -132,30 +144,47 @@ class ApHttpClient
                         'headers' => $this->getInstanceHeaders($apProfileId, null, 'get', ApRequestType::ActivityPub),
                     ]);
                     // If 4xx error response, try to find the actor locally
-                    if (str_starts_with((string) $response->getStatusCode(), '4')) {
+                    // Check for recoverable errors and requeue
+                    if (HttpStatusHelper::isStatusCodeTemporary((string) $response->getStatusCode())) {
+                        $this->logger->warning("ApHttpClient: Get fail (temporary): {$apProfileId} / {$response->getStatusCode()}, ".$response->getContent(false));
+                        throw new RecoverableMessageHandlingException("Get fail (temporary): {$apProfileId} / {$response->getStatusCode()}");
+                    } elseif (HttpStatusHelper::isStatusCodeMissing((string) $response->getStatusCode())) {
                         if ($user = $this->userRepository->findOneByApProfileId($apProfileId)) {
                             $user->apDeletedAt = new \DateTime();
                             $this->userRepository->save($user, true);
+                            $this->logger->info("Removed user {$apProfileId} because of http {$response->getStatusCode()} status");
+                            throw new UnrecoverableMessageHandlingException("ApHttpClient: User {$apProfileId} was deleted");                            
                         }
                         if ($magazine = $this->magazineRepository->findOneByApProfileId($apProfileId)) {
                             $magazine->apDeletedAt = new \DateTime();
                             $this->magazineRepository->save($magazine, true);
+                            $this->logger->info("Removed magazine {$apProfileId} because of http {$response->getStatusCode()} status");
+                            throw new UnrecoverableMessageHandlingException("ApHttpClient: Magazine {$apProfileId} was deleted");
                         }
                     }
+                    // Check for failure and report
+                    elseif (!str_starts_with((string) $response->getStatusCode(), '2')) {
+                        $this->logger->error("ApHttpClient: Get fail: {$apProfileId} / {$response->getStatusCode()}, ".$response->getContent(false));
+                        throw new InvalidApGetException("Get fail: {$apProfileId} / {$response->getStatusCode()}");
+                    }
+                } catch (RecoverableMessageHandlingException $e) {
+                    throw $e;
+                } catch (InvalidApGetException $e) {
+                    throw $e;
                 } catch (\Exception $e) {
                     // If an exception occurred, try to find the actor locally
-                    if ($user = $this->userRepository->findOneByApProfileId($apProfileId)) {
+                    if ($apProfileId && $user = $this->userRepository->findOneByApProfileId($apProfileId)) {
                         $user->apTimeoutAt = new \DateTime();
                         $this->userRepository->save($user, true);
                     }
-                    if ($magazine = $this->magazineRepository->findOneByApProfileId($apProfileId)) {
+                    if ($apProfileId && $magazine = $this->magazineRepository->findOneByApProfileId($apProfileId)) {
                         $magazine->apTimeoutAt = new \DateTime();
                         $this->magazineRepository->save($magazine, true);
                     }
 
-                    throw new InvalidApPostException("AP Get fail: {$apProfileId}, ".$response->getContent(false));
+                    $this->logger->error("ApHttpClient: Get fail: {$apProfileId} / {$response->getStatusCode()}, ".$response->getContent(false));
+                    throw new InvalidApGetException("AP Get fail: {$apProfileId} / {$response->getStatusCode()}");
                 }
-
                 $item->expiresAt(new \DateTime('+1 hour'));
 
                 // When everything goes OK, return the data
@@ -186,9 +215,14 @@ class ApHttpClient
             'headers' => $this->getHeaders($url, $actor, $body),
         ]);
 
-        if (!str_starts_with((string) $response->getStatusCode(), '2')) {
-            throw new InvalidApPostException("Post fail: {$url}, ".$response->getContent(false).' '.json_encode($body));
+        if (HttpStatusHelper::isStatusCodeTemporary((string) $response->getStatusCode())) {
+            $this->logger->warning("ApHttpClient: Post fail: {$url} / {$response->getStatusCode()}, ".$response->getContent(false));
+            throw new RecoverableMessageHandlingException("Post fail (temporary): {$url} / {$response->getStatusCode()}");
         }
+
+        if (!str_starts_with((string) $response->getStatusCode(), '2')) {
+            $this->logger->error("ApHttpClient: Post fail: {$url} / {$response->getStatusCode()}, ".$response->getContent(false).' '.json_encode($body));
+            throw new InvalidApPostException("Post fail: {$url} / {$response->getStatusCode()}");        }
 
         // build cache
         $item = $this->cache->getItem($cacheKey);

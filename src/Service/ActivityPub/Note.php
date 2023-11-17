@@ -23,6 +23,7 @@ use App\Service\EntryCommentManager;
 use App\Service\PostCommentManager;
 use App\Service\PostManager;
 use App\Service\SettingsManager;
+use App\Utils\ArrayHelper;
 use Doctrine\ORM\EntityManagerInterface;
 
 class Note
@@ -155,12 +156,12 @@ class Note
     {
         if (!\in_array(
             ActivityPubActivityInterface::PUBLIC_URL,
-            array_merge($object['to'] ?? [], $object['cc'] ?? [])
+            ArrayHelper::safe_merge_array($object['to'], $object['cc'])
         )) {
             if (
                 !\in_array(
                     $actor->apFollowersUrl,
-                    array_merge($object['to'] ?? [], $object['cc'] ?? [])
+                    ArrayHelper::safe_merge_array($object['to'], $object['cc'])
                 )
             ) {
                 throw new \Exception('PM: not implemented.');
@@ -190,7 +191,7 @@ class Note
     ): ActivityPubActivityInterface {
         $dto = new PostDto();
         $dto->magazine = $this->magazineRepository->findByApGroupProfileId(
-            array_merge($object['to'], $object['cc'])
+            ArrayHelper::safe_merge_array($object['to'], $object['cc'])
         ) ?? $this->magazineRepository->findOneByName(
             'random'
         );

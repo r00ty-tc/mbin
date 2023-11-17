@@ -14,6 +14,7 @@ use App\Repository\MagazineRepository;
 use App\Service\ActivityPubManager;
 use App\Service\EntryManager;
 use App\Service\SettingsManager;
+use App\Utils\ArrayHelper;
 use Doctrine\ORM\EntityManagerInterface;
 
 class Page
@@ -53,7 +54,7 @@ class Page
 
             $dto = new EntryDto();
             $dto->magazine = $this->magazineRepository->findByApGroupProfileId(
-                array_merge($object['to'], $object['cc'])
+                ArrayHelper::safe_merge_array($object['to'], $object['cc'])
             ) ?? $this->magazineRepository->findOneByName(
                 'random'
             );
@@ -101,12 +102,12 @@ class Page
     {
         if (!\in_array(
             ActivityPubActivityInterface::PUBLIC_URL,
-            array_merge($object['to'] ?? [], $object['cc'] ?? [])
+            ArrayHelper::safe_merge_array($object['to'], $object['cc'])
         )) {
             if (
                 !\in_array(
                     $actor->apFollowersUrl,
-                    array_merge($object['to'] ?? [], $object['cc'] ?? [])
+                    ArrayHelper::safe_merge_array($object['to'], $object['cc'])
                 )
             ) {
                 throw new \Exception('PM: not implemented.');

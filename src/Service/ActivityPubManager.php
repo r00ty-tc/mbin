@@ -119,11 +119,12 @@ class ActivityPubManager
 
         $actorUrl = $actorUrlOrHandle;
         if (false === filter_var($actorUrl, FILTER_VALIDATE_URL)) {
+            $fingerResult = $this->webfinger($actorUrl);
             if (!substr_count(ltrim($actorUrl, '@'), '@')) {
                 return $this->userRepository->findOneBy(['username' => ltrim($actorUrl, '@')]);
             }
 
-            $actorUrl = $this->webfinger($actorUrl)->getProfileId();
+            $actorUrl = $fingerResult->getProfileId();
         }
 
         if (\in_array(
@@ -141,7 +142,20 @@ class ActivityPubManager
         if (!empty($actor) && isset($actor['type'])) {
             // User (we don't make a distinction between bots with type Service as Lemmy does)
             if (\in_array($actor['type'], self::USER_TYPES)) {
-                $user = $this->userRepository->findOneBy(['apProfileId' => $actorUrl]);
+                if (isset($fingerResult)) {
+                    // This can fail in weird ways
+                    try {
+                        $actorHandle = $fingerResult->getHandle();
+                    } catch (\Exception $e) {
+                    }
+                }
+
+                if (isset($actorHandle)) {
+                    $user = $this->userRepository->findOneBy(['apId' => $actorHandle]);
+                } else {
+                    $user = $this->userRepository->findOneBy(['apProfileId' => $actorUrl]);
+                }
+
                 if (!$user) {
                     $user = $this->createUser($actorUrl);
                 } else {
@@ -158,8 +172,21 @@ class ActivityPubManager
 
             // Magazine (Group)
             if ('Group' === $actor['type']) {
-                // User
-                $magazine = $this->magazineRepository->findOneBy(['apProfileId' => $actorUrl]);
+                // Magazine
+                $magazineHandle = $this->buildHandle($actorUrl);
+
+                if ($magazineHandle) {
+                    $magazine = $this->magazineRepository->findOneBy(['apId' => $magazineHandle]);
+
+                    // Update if ap profile changed
+                    if ($magazine && $magazine->apProfileId !== $actorUrl) {
+                        $magazine->apProfileId = $actorUrl;
+                        $this->entityManager->flush();
+                    }
+                } else {
+                    $magazine = $this->magazineRepository->findOneBy(['apProfileId' => $actorUrl]);
+                }
+
                 if (!$magazine) {
                     $magazine = $this->createMagazine($actorUrl);
                 } else {

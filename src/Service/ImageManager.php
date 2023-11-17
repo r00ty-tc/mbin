@@ -117,7 +117,7 @@ class ImageManager
 
             $this->validate($tempFile);
         } catch (\Exception $e) {
-            if ($fh) {
+            if ($fh && 'Unknown' !== get_resource_type($fh)) {
                 fclose($fh);
             }
             unlink($tempFile);

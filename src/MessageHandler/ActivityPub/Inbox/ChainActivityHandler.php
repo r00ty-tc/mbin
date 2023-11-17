@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\MessageHandler\ActivityPub\Inbox;
 
+use App\Exception\InvalidApGetException;
 use App\Message\ActivityPub\Inbox\AnnounceMessage;
 use App\Message\ActivityPub\Inbox\ChainActivityMessage;
 use App\Message\ActivityPub\Inbox\LikeMessage;
@@ -34,6 +35,10 @@ class ChainActivityHandler
             return;
         }
 
+
+        // Remove any null elements in message chain
+        $message->chain = array_filter($message->chain);
+
         $object = end($message->chain);
         if (!empty($object)) {
             // Handle parent objects
@@ -46,17 +51,26 @@ class ChainActivityHandler
                     return;
                 }
 
-                $message->chain[] = $this->client->getActivityObject($object['inReplyTo']);
-                $this->bus->dispatch(new ChainActivityMessage($message->chain, null, $message->announce, $message->like));
+                if ($activtyObject = $this->client->getActivityObject($object['inReplyTo'])) {
+                    // If successful getting activity object from remote server add chain and resubmit
+                    $message->chain[] = $activtyObject;
+                    $this->bus->dispatch(new ChainActivityMessage($message->chain, null, $message->announce, $message->like));
+                } else {
+                    // If not succesful, fail this message with an exception
+                    throw new InvalidApGetException("Failed to get object {$object['inReplyTo']} which is part of a chain message");
+                }
 
                 return;
             }
 
-            $entity = match ($this->getType($object)) {
-                'Note' => $this->note->create($object),
-                'Page' => $this->page->create($object),
-                default => null
-            };
+            // I am questioning this. But sometimes we're ending up with a bool in $object
+            if (is_array($object)) {
+                $entity = match ($this->getType($object)) {
+                    'Note' => $this->note->create($object),
+                    'Page' => $this->page->create($object),
+                    default => null
+                };
+            }
 
             if (!$entity) {
                 if ($message->announce && $message->announce['object'] === $object['object']) {

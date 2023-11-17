@@ -44,21 +44,23 @@ readonly class ActivityHandler
         }
 
         try {
-            if (isset($payload['actor']) || isset($payload['attributedTo'])) {
-                if (!$this->verifyInstanceDomain($payload['actor'] ?? $payload['attributedTo'])) {
-                    return;
+            // Don't try to get a user if we're deleting
+            if (!$payload['type'] || 'Delete' !== $payload['type']) {
+                if (isset($payload['actor']) || isset($payload['attributedTo'])) {
+                    if (!$this->verifyInstanceDomain($payload['actor'] ?? $payload['attributedTo'])) {
+                        return;
+                    }
+                    $user = $this->manager->findActorOrCreate($payload['actor'] ?? $payload['attributedTo']);
+                } else {
+                    if (!$this->verifyInstanceDomain($payload['id'])) {
+                        return;
+                    }
+                    $user = $this->manager->findActorOrCreate($payload['id']);                
                 }
-                $user = $this->manager->findActorOrCreate($payload['actor'] ?? $payload['attributedTo']);
-            } else {
-                if (!$this->verifyInstanceDomain($payload['id'])) {
-                    return;
-                }
-                $user = $this->manager->findActorOrCreate($payload['id']);
             }
         } catch (\Exception $e) {
             $this->logger->error('payload: '.json_encode($payload));
-
-            return;
+            throw $e;
         }
 
         if ($user instanceof User && $user->isBanned) {

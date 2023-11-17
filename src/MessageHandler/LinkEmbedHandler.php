@@ -25,19 +25,31 @@ class LinkEmbedHandler
         preg_match_all('#\bhttps?://[^,\s()<>]+(?:\([\w\d]+\)|([^,[:punct:]\s]|/))#', $message->body, $match);
 
         foreach ($match[0] as $url) {
+            $existingEmbed = $this->embedRepository->findOneBy(['url' => $url]);
             try {
                 $embed = $this->embed->fetch($url)->html;
                 if ($embed) {
-                    $entity = new \App\Entity\Embed($url, true);
-                    $this->embedRepository->add($entity);
+                    if ($existingEmbed) {
+                        $existingEmbed->hasEmbed = true;
+                        $this->entityManager->flush();
+                    } else {
+                        $entity = new \App\Entity\Embed($url, true);
+                        $this->embedRepository->add($entity);
+                    }
                 }
             } catch (\Exception $e) {
                 $embed = false;
             }
 
             if (!$embed) {
-                $entity = new \App\Entity\Embed($url, false);
-                $this->embedRepository->add($entity);
+
+                if ($existingEmbed) {
+                    $existingEmbed->hasEmbed = false;
+                    $this->entityManager->flush();
+                } else {
+                    $entity = new \App\Entity\Embed($url, false);
+                    $this->embedRepository->add($entity);
+                }
             }
         }
 

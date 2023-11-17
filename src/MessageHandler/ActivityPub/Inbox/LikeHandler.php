@@ -11,6 +11,7 @@ use App\Service\ActivityPub\ApHttpClient;
 use App\Service\ActivityPubManager;
 use App\Service\FavouriteManager;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 use Symfony\Component\Messenger\MessageBusInterface;
 
@@ -24,6 +25,7 @@ class LikeHandler
         private readonly MessageBusInterface $bus,
         private readonly FavouriteManager $manager,
         private readonly ApHttpClient $apHttpClient,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -33,7 +35,9 @@ class LikeHandler
             $activity = $this->repository->findByObjectId($message->payload['object']);
 
             if ($activity) {
+                $this->logger->info("LikeHandler/invoke: About to execute find on type {$activity['type']} for ID {$activity['id']}");
                 $entity = $this->entityManager->getRepository($activity['type'])->find((int) $activity['id']);
+                $this->logger->info("LikeHandler/invoke: Performed find and got entity with id type {$activity['type']} for ID {$activity['id']}");
             } else {
                 $object = $this->apHttpClient->getActivityObject($message->payload['object']);
 
@@ -52,11 +56,13 @@ class LikeHandler
         } elseif ('Undo' === $message->payload['type']) {
             if ('Like' === $message->payload['object']['type']) {
                 $activity = $this->repository->findByObjectId($message->payload['object']['object']);
-                $entity = $this->entityManager->getRepository($activity['type'])->find((int) $activity['id']);
-                $actor = $this->activityPubManager->findActorOrCreate($message->payload['actor']);
-                // Check if actor and entity aren't empty
-                if (!empty($actor) && !empty($entity)) {
-                    $this->manager->toggle($actor, $entity, FavouriteManager::TYPE_UNLIKE);
+                if ($activity) {
+                    $entity = $this->entityManager->getRepository($activity['type'])->find((int) $activity['id']);
+                    $actor = $this->activityPubManager->findActorOrCreate($message->payload['actor']);
+                    // Check if actor and entity aren't empty
+                    if (!empty($actor) && !empty($entity)) {
+                        $this->manager->toggle($actor, $entity, FavouriteManager::TYPE_UNLIKE);
+                    }
                 }
             }
         }
