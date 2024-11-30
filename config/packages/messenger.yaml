@@ -9,22 +9,29 @@ framework:
             async:
                 dsn: "%env(MESSENGER_TRANSPORT_DSN)%"
                 retry_strategy:
-                    max_retries: 0
-                    delay: 1800000
-                    multiplier: 2
-                    max_delay: 0
+                    max_retries: 5
+                    delay: 2350
+                    multiplier: 4
+                    max_delay: 1800000
                 serializer: messenger.transport.symfony_serializer
             async_ap:
                 dsn: "%env(MESSENGER_TRANSPORT_DSN)%"
                 retry_strategy:
-                    max_retries: 0
-                    delay: 1800000
-                    multiplier: 2
-                    max_delay: 0
+                    max_retries: 5
+                    delay: 2350
+                    multiplier: 4
+                    max_delay: 1800000
                 serializer: messenger.transport.symfony_serializer
             failed:
                 dsn: "doctrine://default?queue_name=failed"
+                retry_strategy:
+                    max_retries: 10
+                    delay: 20000
+                    multiplier: 2
+                    max_delay: 3600000
                 serializer: messenger.transport.symfony_serializer
+            # https://symfony.com/doc/current/messenger.html#transport-configuration
+            liip_imagine: '%env(MESSENGER_TRANSPORT_IMG_DSN)%'
 
         routing:
             # Route your messages to the transports
@@ -32,6 +39,8 @@ framework:
             App\Message\Contracts\AsyncApMessageInterface: async_ap
             # Consider adding SendEmail from Mailer via async messenger as well:
             #Symfony\Component\Mailer\Messenger\SendEmailMessage: async
+            # Route your messages to the transports
+            'Liip\ImagineBundle\Message\WarmupCache': liip_imagine
 # when@test:
 #    framework:
 #        messenger:

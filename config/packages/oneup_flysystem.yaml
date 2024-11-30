@@ -5,18 +5,18 @@ oneup_flysystem:
       local:
         location: "%kernel.project_dir%/public/%uploads_dir_name%"
 
-    #kbin.s3_adapter:
-    #  awss3v3:
-    #    client: kbin.s3_client
-    #    bucket: "%amazon.s3.bucket%"
-    #    options:
-    #      ACL: public-read
-    ## If using an s3 bucket with owner-full-control and no ACL, the following may work:
+    kbin.s3_adapter:
+      awss3v3:
+        client: kbin.s3_client
+        bucket: "%amazon.s3.bucket%"
+          #    options:
+          #     ACL: public-read
+            # If using an s3 bucket with owner-full-control and no ACL, the following may work:
     ##    options:
     ##      ACL: ''
 
   filesystems:
     public_uploads_filesystem:
-      adapter: default_adapter
-      #adapter: kbin.s3_adapter
+      #adapter: default_adapter
+      adapter: kbin.s3_adapter
       alias: League\Flysystem\Filesystem
